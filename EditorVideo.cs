@@ -25,6 +25,7 @@ using AForge.Imaging.Textures;
 using AForge.Controls;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 using System.Collections.Specialized;
+using System.Threading;
 
 namespace PIA_PI
 {
@@ -40,8 +41,12 @@ namespace PIA_PI
         Mat math;
         Bitmap bmp;
 
+        private Bitmap  processedImage; // Variable global para mantener la imagen procesada
+
+
         private const int WM_NCLBUTTONDOWN = 0xA1;
         private const int HT_CAPTION = 0x2;
+
 
         [DllImportAttribute("user32.dll")]
         private static extern int SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
@@ -78,74 +83,62 @@ namespace PIA_PI
                     {
                         currentFrame = math.ToImage<Bgr, byte>();
 
+                        // Crear una copia de la imagen para aplicar los efectos
+                        Bitmap processedImage = currentFrame.Bitmap;
+                        //elimianr bitmap si falla (esto es por la variable global que hice)
+
                         // Aplicar el filtro dependiendo de la opción seleccionada
                         switch (opcion_filtro)
                         {
-                            /*
-                            1-Efecto Solarizado
-                            2-Filtro de Calor
-                            3-Efecto PopArt
-                            4-Efecto Emboss
-                            5-Efecto Vignette
-                            6-Efecto Glitch
-                            7-Efecto Negativo
-                            8-Detección de Bordes
-                            9-Efecto Cómic
-                            10-Efecto Gradiente Arcoiris
-                                */
-
-                            case 1: //Efecto Solarizado
-                                ApplySolarizationEffect(currentFrame.Bitmap);
+                            case 1: // Efecto Solarizado
+                                processedImage = ApplySolarizationEffect(processedImage);
                                 break;
-                            case 2: //Efecto Filtro de Calor
-                                ApplyHeatEffect(currentFrame.Bitmap);
+                            case 2: // Filtro de Calor
+                                processedImage = ApplyHeatEffect(processedImage);
                                 break;
-                            case 3: //Efecto PopArt
-                                ApplyPopArtEffect(currentFrame.Bitmap);
+                            case 3: // Efecto PopArt
+                                processedImage = ApplyPopArtEffect(processedImage);
                                 break;
-                            case 4: //Efecto Emboss
-                                ApplyEmbossEffect(currentFrame.Bitmap);
+                            case 4: // Efecto Emboss
+                                processedImage = ApplyEmbossEffect(processedImage);
                                 break;
-                            case 5: //Efecto Vignette
-                                ApplyVignetteEffect(currentFrame.Bitmap);
+                            case 5: // Efecto Vignette
+                                processedImage = ApplyVignetteEffect(processedImage);
                                 break;
-                            case 6: //Efecto Glitch
-                                ApplyGlitchEffect(currentFrame.Bitmap);
+                            case 6: // Efecto Glitch
+                                processedImage = ApplyGlitchEffect(processedImage);
                                 break;
-                            case 7: //Efecto Negativo
-                                ApplyNegativeEffect(currentFrame.Bitmap);
+                            case 7: // Efecto Negativo
+                                processedImage = ApplyNegativeEffect(processedImage);
                                 break;
-                            case 8: //Efecto Detección de Bordes
-                                ApplyEdgeDetectionEffect(currentFrame.Bitmap);
+                            case 8: // Detección de Bordes
+                                processedImage = ApplyEdgeDetectionEffect(processedImage);
                                 break;
-                            case 9: //Efecto Comic
-                                ApplyComicEffect(currentFrame.Bitmap);
+                            case 9: // Efecto Cómic
+                                processedImage = ApplyComicEffect(processedImage);
                                 break;
-                            case 10: //Efecto Gradiente Arcoiris
-                                ApplyRainbowGradientEffect(currentFrame.Bitmap);
+                            case 10: // Efecto Gradiente Arcoiris
+                                processedImage = ApplyRainbowGradientEffect(processedImage);
                                 break;
 
                             default:
-                                pictureBox1.Image = currentFrame.Bitmap;
                                 break;
-
                         }
-                      
+                        // Actualizar el PictureBox con la imagen procesada
+                        pictureBox1.Image = processedImage;
                     }
+                    //Thread.Sleep(24);  // Son ms (1000 milisegundos = 1 segundo)
 
                 }
             }
             else
- 
             {
                 // Si no hay un video o el video ha terminado, limpiar la imagen del PictureBox
                 pictureBox1.Image = null; // Limpia la imagen
             }
-
-
         }
 
-    
+
 
         private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
         {
@@ -159,42 +152,84 @@ namespace PIA_PI
             openFileDialog.Filter = "Archivos de video|*.mp4;*.avi;*.wmv;*.mkv|Todos los archivos|*.*";
             if (openFileDialog.ShowDialog() == DialogResult.OK)
             {
-                string rutaArchivo = openFileDialog.FileName;
-                Video = new VideoCapture(openFileDialog.FileName);
-                math = new Mat();
-                Video.Read(math);
-                currentFrame = math.ToImage<Bgr, byte>();
-                pictureBox1.Image = currentFrame.Bitmap;
-                opcion_filtro = 0; // Restablecer el filtro (si es necesario)
-                isVideo = true;
-                isplay = false;
-                duracion = Video.GetCaptureProperty(CapProp.FrameCount);
-                frameCount = Video.GetCaptureProperty(CapProp.PosFrames);
+                try
+                {
+
+                    string rutaArchivo = openFileDialog.FileName;
+                    Video = new VideoCapture(openFileDialog.FileName);
+                    math = new Mat();
+
+
+                    // Intentar leer el primer cuadro del video
+                    Video.Read(math);
+                    // Verificar si el primer cuadro está vacío, lo cual indicaría que el archivo no es válido
+                    if (math.IsEmpty)
+                    {
+                        throw new ArgumentException("El archivo no es un video válido o está dañado.");
+                    }
+
+
+                    Video.Read(math);
+                    currentFrame = math.ToImage<Bgr, byte>();
+                    pictureBox1.Image = currentFrame.Bitmap;
+                    opcion_filtro = 0; // Restablecer el filtro (si es necesario)
+                    isVideo = true;
+                    isplay = false;
+                    duracion = Video.GetCaptureProperty(CapProp.FrameCount);
+                    frameCount = Video.GetCaptureProperty(CapProp.PosFrames);
+                }
+                catch (ArgumentException)
+                {
+                    // Manejo de error si el archivo no es un video válido
+                    MessageBox.Show("El archivo seleccionado no es un video válido. Por favor, seleccione un video compatible.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                catch (Exception ex)
+                {
+                    // Capturar cualquier otro error inesperado
+                    MessageBox.Show("Ocurrió un error al cargar el video: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
 
         private void button5_Click(object sender, EventArgs e)
         {
-            isplay = true;
+        
             if (isVideo)
             {
+                isplay = true;
                 Application.Idle += new EventHandler(VideoFrameCapture);
             }
             else
             {
-                MessageBox.Show("No es video", "Aviso", MessageBoxButtons.OK);
+                MessageBox.Show("No hay un video cargado. No se puede realizar esta acción.", "Advertencia", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
         private void button7_Click(object sender, EventArgs e)
         {
-            isplay = false;
+            if (isVideo)
+            {
+                isplay = false;
+                //Application.Idle -= VideoFrameCapture; // Detener el evento de captura de fotogramas
+            }
+            else
+            {
+                // Mostrar advertencia si no hay video cargado.
+                MessageBox.Show("No hay un video cargado. No se puede pausar.", "Advertencia", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
 
 
         private void button2_Click(object sender, EventArgs e)
         {
+            // Verificar si hay una imagen o video cargado en el PictureBox
+            if (pictureBox1.Image == null)
+            {
+                MessageBox.Show("No hay video para quitar.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return; // Si no hay imagen, no hacemos nada más
+            }
+
             // Detener la reproducción del video
             isplay = false;
 
@@ -224,15 +259,36 @@ namespace PIA_PI
 
         private void button4_Click(object sender, EventArgs e)
         {
+            // Verificar si hay un video cargado
+            if (Video == null || !isVideo)
+            {
+                MessageBox.Show("No hay un video cargado. No se puede realizar esta acción.", "Advertencia", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return; // Salir del método si no hay video
+            }
+
             isplay = false; // Detener la reproducción
             frameCount = 0; // Reiniciar el contador de fotogramas
             Video.SetCaptureProperty(CapProp.PosFrames, 0); // Volver al primer fotograma
 
-            if (currentFrame != null)
+            Application.Idle -= VideoFrameCapture; // Detener la captura de fotogramas
+
+                                                   // Verificar si hay una imagen procesada para mostrar
+            if (processedImage != null)
             {
-                pictureBox1.Image = currentFrame.Bitmap; // Mostrar el primer fotograma (o una imagen en blanco)
+                pictureBox1.Image = processedImage; // Mostrar la imagen procesada (con filtro)
             }
-        }
+            else
+            {
+                // Si no hay imagen procesada, mostrar el fotograma inicial
+                math = Video.QueryFrame();
+                if (math != null)
+                {
+                    currentFrame = math.ToImage<Bgr, byte>(); // Capturar el fotograma actual
+                    pictureBox1.Image = currentFrame.Bitmap; // Guardar el fotograma inicial procesado
+                   // pictureBox1.Image = processedImage; // Mostrarlo
+                }
+            }
+            }
 
         private void pictureBox1_Click(object sender, EventArgs e)
         {
@@ -324,15 +380,47 @@ namespace PIA_PI
         }
 
 
-
-
         private void comboBox1_SelectedIndexChanged_1(object sender, EventArgs e)
         {
 
         }
+        private void EditorVideo_Load(object sender, EventArgs e)
+        {
 
+        }
 
+        private void EditorVideo_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            isplay = false;            // Detener la reproducción
+            frameCount = 0;            // Reiniciar el contador de frames
+            
+            // Desvincular el evento Application.Idle para detener la captura de fotogramas
+            Application.Idle -= VideoFrameCapture;
 
+            if (Video != null && Video.IsOpened)
+            {
+                Video.SetCaptureProperty(CapProp.PosFrames, 0); // Volver al primer fotograma
+            }
+
+            duracion = 0;   // Reiniciar la duración del video
+            pictureBox1.Image = null; // Quitar la imagen actual del PictureBox
+            frameCount = 0; // Reiniciar el contador de frames
+            isVideo = false; // Indicar que ya no hay un video cargado
+
+            // Liberar el objeto VideoCapture
+            if (Video != null)
+            {
+                Video.Dispose();
+                Video = null;
+            }
+
+            // Liberar el currentFrame si ya no lo necesitas
+            if (currentFrame != null)
+            {
+                currentFrame.Dispose();
+                currentFrame = null;
+            }
+        }
 
 
 
@@ -351,51 +439,69 @@ namespace PIA_PI
                10 Efecto Difuminado(Gaussiano)
         */
 
-        //==========================================EFECTO DE SOLARIZADO========================================================================
+        //==========================================EFECTO DE SOLARIZADO(lock)========================================================================
         private Bitmap ApplySolarizationEffect(Bitmap sourceBitmap)
         {
-            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height);
+            // Crear una copia de la imagen para trabajar en ella sin modificar la original
+            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height, PixelFormat.Format24bppRgb);
 
-            int totalPixels = sourceBitmap.Width * sourceBitmap.Height;
-            int currentPixel = 0;
+            // Bloquear los bits de la imagen fuente y destino
+            BitmapData srcData = sourceBitmap.LockBits(new Rectangle(0, 0, sourceBitmap.Width, sourceBitmap.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+            BitmapData destData = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
 
-            for (int y = 0; y < sourceBitmap.Height; y++)
+            int bytesPerPixel = 3; // Para 24bpp
+            int stride = srcData.Stride;
+            IntPtr srcPtr = srcData.Scan0;
+            IntPtr destPtr = destData.Scan0;
+
+            byte[] srcBuffer = new byte[stride * sourceBitmap.Height];
+            byte[] destBuffer = new byte[stride * bmp.Height];
+
+            // Copiar datos de la imagen fuente al búfer de bytes
+            Marshal.Copy(srcPtr, srcBuffer, 0, srcBuffer.Length);
+
+            for (int y = 0; y < bmp.Height; y++)
             {
-                for (int x = 0; x < sourceBitmap.Width; x++)
+                for (int x = 0; x < bmp.Width; x++)
                 {
-                    Color pixelColor = sourceBitmap.GetPixel(x, y);
+                    int index = (y * stride) + (x * bytesPerPixel);
 
-                    // Se calcula la luminosidad promedio
-                    int avg = (pixelColor.R + pixelColor.G + pixelColor.B) / 3;
+                    // Obtener los valores de los canales BGR
+                    byte b = srcBuffer[index];
+                    byte g = srcBuffer[index + 1];
+                    byte r = srcBuffer[index + 2];
 
-                    // Umbral para el efecto de solarizado
-                    if (avg < 128) // Puedes ajustar este valor para cambiar la intensidad del efecto
+                    // Calcular la luminosidad promedio
+                    int avg = (r + g + b) / 3;
+
+                    if (avg < 128)
                     {
-                        // Invertir el color si la luminosidad es baja
-                        int invertedR = 255 - pixelColor.R;
-                        int invertedG = 255 - pixelColor.G;
-                        int invertedB = 255 - pixelColor.B;
-
-                        bmp.SetPixel(x, y, Color.FromArgb(invertedR, invertedG, invertedB));
+                        // Invertir los colores si la luminosidad es baja
+                        destBuffer[index] = (byte)(255 - b);
+                        destBuffer[index + 1] = (byte)(255 - g);
+                        destBuffer[index + 2] = (byte)(255 - r);
                     }
                     else
                     {
-                        // Mantener el color original si la luminosidad es alta
-                        bmp.SetPixel(x, y, pixelColor);
+                        // Mantener el color original
+                        destBuffer[index] = b;
+                        destBuffer[index + 1] = g;
+                        destBuffer[index + 2] = r;
                     }
-
-                    currentPixel++;
-                    int progressPercentage = currentPixel * 100 / totalPixels;
-                    Application.DoEvents();
                 }
             }
 
-            // Recalcular y actualizar el histograma con la imagen filtrada
+            // Copiar el búfer modificado de vuelta a la imagen destino
+            Marshal.Copy(destBuffer, 0, destPtr, destBuffer.Length);
+
+            // Desbloquear los bits
+            sourceBitmap.UnlockBits(srcData);
+            bmp.UnlockBits(destData);
 
             return bmp;
         }
 
-        //==========================================FILTRO DE CALOR======================================================================
+        //==========================================FILTRO DE CALOR(bitmap)======================================================================
 
         private Bitmap ApplyHeatEffect(Bitmap sourceBitmap)
         {
@@ -431,7 +537,7 @@ namespace PIA_PI
             return bmp; // Devuelve la imagen con el filtro aplicado
         }
 
-        //==========================================EFECTO POPART========================================================================
+        //==========================================EFECTO POPART(bitmap)========================================================================
 
         private Bitmap ApplyPopArtEffect(Bitmap sourceBitmap)
         {
@@ -471,7 +577,7 @@ namespace PIA_PI
             return bmp;
         }
 
-        //==========================================EFECTO EMBOSS========================================================================
+        //==========================================EFECTO EMBOSS(bitmap)========================================================================
 
         private Bitmap ApplyEmbossEffect(Bitmap sourceBitmap)
         {
@@ -517,7 +623,7 @@ namespace PIA_PI
             return bmp;
         }
 
-        //==========================================EFECTO VIGNETTE======================================================================
+        //==========================================EFECTO VIGNETTE(bitmap)======================================================================
 
         private Bitmap ApplyVignetteEffect(Bitmap sourceBitmap)
         {
@@ -577,7 +683,7 @@ namespace PIA_PI
             return Math.Max(min, Math.Min(max, value));
         }
 
-        //==========================================EFECTO GLITCH========================================================================
+        //==========================================EFECTO GLITCH(bitmap)========================================================================
 
         private Bitmap ApplyGlitchEffect(Bitmap sourceBitmap)
         {
@@ -633,7 +739,7 @@ namespace PIA_PI
             return Math.Max(min, Math.Min(max, value));
         }
 
-        //==========================================EFECTO NEGATIVO======================================================================
+        //==========================================EFECTO NEGATIVO(bitmap)======================================================================
 
         private Bitmap ApplyNegativeEffect(Bitmap sourceBitmap)
         {
@@ -727,7 +833,7 @@ namespace PIA_PI
         }
 
 
-        //==========================================EFECTO DE COMIC======================================================================
+        //==========================================EFECTO DE COMIC(bitmap)======================================================================
         private Bitmap ApplyComicEffect(Bitmap sourceBitmap)
         {
             Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height);
@@ -760,7 +866,7 @@ namespace PIA_PI
             return bmp;
         }
 
-        //==========================================EFECTO DIFUMINADO(GAUSSIANO)========================================================================
+        //==========================================EFECTO DIFUMINADO(GAUSSIANO) (Lo quité)=======================================================================
 
         private Bitmap ApplyGaussianBlur(Bitmap sourceBitmap)
         {
@@ -820,7 +926,7 @@ namespace PIA_PI
             return Math.Max(min, Math.Min(max, value));
         }
 
-        //==========================================EFECTO GRADIENTE ARCOIRIS========================================================================
+        //==========================================EFECTO GRADIENTE ARCOIRIS(bitmap)========================================================================
 
         private Bitmap ApplyRainbowGradientEffect(Bitmap sourceBitmap)
         {
@@ -848,17 +954,9 @@ namespace PIA_PI
             return resultBitmap;
         }
 
+        private void button6_Click(object sender, EventArgs e)
+        {
 
-
-
-
-
-
-
-
-
-
-
-
+        }
     }
 }

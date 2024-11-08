@@ -249,6 +249,7 @@
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "EditorImagenes";
             this.Text = "JoePixel - Editor De Imágenes";
+            this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.EditorImagenes_FormClosed);
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).EndInit();
             this.groupBox1.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox2)).EndInit();

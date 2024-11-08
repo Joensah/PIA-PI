@@ -83,6 +83,7 @@
             this.comboBox1.Name = "comboBox1";
             this.comboBox1.Size = new System.Drawing.Size(262, 24);
             this.comboBox1.TabIndex = 13;
+            this.comboBox1.SelectedIndexChanged += new System.EventHandler(this.comboBox1_SelectedIndexChanged_1);
             // 
             // label2
             // 
@@ -160,6 +161,7 @@
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Camara";
             this.Text = "JoePixel - Detector De Rostros";
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Camara_FormClosing);
             this.Load += new System.EventHandler(this.Camara_Load);
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).EndInit();
             this.ResumeLayout(false);

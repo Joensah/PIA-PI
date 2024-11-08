@@ -39,6 +39,7 @@
             this.button1 = new System.Windows.Forms.Button();
             this.button2 = new System.Windows.Forms.Button();
             this.label2 = new System.Windows.Forms.Label();
+            this.button6 = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             this.SuspendLayout();
             // 
@@ -98,7 +99,7 @@
             this.button3.BackColor = System.Drawing.Color.MidnightBlue;
             this.button3.Font = new System.Drawing.Font("MV Boli", 12F, System.Drawing.FontStyle.Bold);
             this.button3.ForeColor = System.Drawing.Color.Lavender;
-            this.button3.Location = new System.Drawing.Point(897, 314);
+            this.button3.Location = new System.Drawing.Point(898, 319);
             this.button3.Name = "button3";
             this.button3.Size = new System.Drawing.Size(183, 42);
             this.button3.TabIndex = 11;
@@ -174,12 +175,27 @@
             this.label2.TabIndex = 17;
             this.label2.Text = "EDITOR DE VÍDEO";
             // 
+            // button6
+            // 
+            this.button6.BackColor = System.Drawing.Color.MidnightBlue;
+            this.button6.Font = new System.Drawing.Font("MV Boli", 12F, System.Drawing.FontStyle.Bold);
+            this.button6.ForeColor = System.Drawing.Color.Lavender;
+            this.button6.Location = new System.Drawing.Point(898, 380);
+            this.button6.Name = "button6";
+            this.button6.Size = new System.Drawing.Size(183, 42);
+            this.button6.TabIndex = 18;
+            this.button6.Text = "Quitar";
+            this.button6.UseVisualStyleBackColor = false;
+            this.button6.Visible = false;
+            this.button6.Click += new System.EventHandler(this.button6_Click);
+            // 
             // EditorVideo
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.LightSkyBlue;
             this.ClientSize = new System.Drawing.Size(1199, 596);
+            this.Controls.Add(this.button6);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.button2);
             this.Controls.Add(this.button1);
@@ -193,6 +209,8 @@
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "EditorVideo";
             this.Text = "JoePixel - Editor De Vídeo";
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.EditorVideo_FormClosing);
+            this.Load += new System.EventHandler(this.EditorVideo_Load);
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
@@ -211,5 +229,6 @@
         private System.Windows.Forms.Button button1;
         private System.Windows.Forms.Button button2;
         private System.Windows.Forms.Label label2;
+        private System.Windows.Forms.Button button6;
     }
 }

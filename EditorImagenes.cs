@@ -52,19 +52,35 @@ namespace PIA_PI
 
             if (openFileDialog.ShowDialog() == DialogResult.OK)
             {
-                string rutaArchivo = openFileDialog.FileName;
-                pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
-                pictureBox2.SizeMode = PictureBoxSizeMode.Zoom;
+                try
+                {
+                    string rutaArchivo = openFileDialog.FileName;
+                    pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
+                    pictureBox2.SizeMode = PictureBoxSizeMode.Zoom;
 
-                Bitmap foto = new Bitmap(rutaArchivo);  // Convertimos directamente a Bitmap
-                pictureBox1.Image = foto;
-                pictureBox2.Image = foto;
-                panel1.CreateGraphics().Clear(panel1.BackColor);
-                panel2.CreateGraphics().Clear(panel2.BackColor);
-                panel3.CreateGraphics().Clear(panel3.BackColor);
-                Obtener_Colores(foto);  // Pasar el Bitmap a la función Obtener_Colores()
+                    Bitmap foto = new Bitmap(rutaArchivo);  // Convertimos directamente a Bitmap
+                    pictureBox1.Image = foto;
+                    pictureBox2.Image = foto;
+                    panel1.CreateGraphics().Clear(panel1.BackColor);
+                    panel2.CreateGraphics().Clear(panel2.BackColor);
+                    panel3.CreateGraphics().Clear(panel3.BackColor);
+                    Obtener_Colores(foto);  // Pasar el Bitmap a la función Obtener_Colores()
+                }
+                catch (ArgumentException)
+                {
+                    // Manejo de error si el archivo no es una imagen válida
+                    MessageBox.Show("El archivo seleccionado no es una imagen válida. Por favor, seleccione una imagen compatible.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                catch (Exception ex)
+                {
+                    // Capturar cualquier otro error inesperado
+                    MessageBox.Show("Ocurrió un error al cargar la imagen: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
+
+      
+
 
         private void Obtener_Colores(Bitmap bitmap)
         {
@@ -117,6 +133,14 @@ namespace PIA_PI
         //Botón para quitar la imagen
         private void button2_Click(object sender, EventArgs e)
         {
+            // Verificar si no hay imagen cargada en ninguno de los PictureBox
+            if (pictureBox1.Image == null && pictureBox2.Image == null)
+            {
+                // Mostrar mensaje de error si no hay imágenes
+                MessageBox.Show("No hay imagen cargada para quitar.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return; // Salir del método sin continuar con la eliminación
+            }
+
             var quitarImagen = MessageBox.Show("¿Desea quitar la imagen?", "Aviso", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
 
             if (quitarImagen == DialogResult.Yes)
@@ -264,7 +288,7 @@ namespace PIA_PI
 
                 }
                 /*
-                //Filtro 10 Efecto Difuminado(Gaussiano)
+                //Filtro 10 Efecto Difuminado(Gaussiano) Eliminado
                 if (filtro == "10-Efecto Difuminado(Gaussiano)")
                 {
                     pictureBox2.Image = ApplyGaussianBlur((Bitmap)pictureBox1.Image);
@@ -272,6 +296,7 @@ namespace PIA_PI
 
                 }
                 */
+
                 //Filtro 10 Gradiente Arcoiris
                 if (filtro == "10-Efecto Gradiente Arcoiris")
                 {
@@ -878,17 +903,13 @@ namespace PIA_PI
             return bmp;
         }
 
+        //Cerrar ventana
+        private void EditorImagenes_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            pictureBox1.Image = null; // Quitar la imagen actual del PictureBox
+            pictureBox2.Image = null; // Quitar la imagen actual del PictureBox
 
 
-
-
-
-
-
-
-
-
-
-
+        }
     }
 }

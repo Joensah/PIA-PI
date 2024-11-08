@@ -81,6 +81,13 @@ namespace PIA_PI
         {
             VariablesGlobales.videos.ShowDialog();
 
+            /*
+            if (VariablesGlobales.videos == null)
+            {
+                VariablesGlobales.videos = new EditorVideo(); // Inicializa el formulario si no está inicializado
+            }
+            VariablesGlobales.videos.ShowDialog();
+            */
         }
 
         private void salirToolStripMenuItem_Click_1(object sender, EventArgs e)

@@ -18,6 +18,7 @@ using Emgu.CV.Structure;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.Button;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 using System.IO;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.ToolTip;
 
 
 namespace PIA_PI
@@ -86,6 +87,7 @@ namespace PIA_PI
 
         private void Camara_Load(object sender, EventArgs e)
         {
+            /*
             filterc = new FilterInfoCollection(FilterCategory.VideoInputDevice);
             foreach (FilterInfo dev in filterc)
             {
@@ -93,7 +95,29 @@ namespace PIA_PI
                 comboBox1.SelectedIndex = 0;
 
             }
+            */
 
+            // Solo agregar las cámaras si el ComboBox está vacío
+            if (comboBox1.Items.Count == 0)
+            {
+                filterc = new FilterInfoCollection(FilterCategory.VideoInputDevice);
+
+                // Agregar las fuentes al ComboBox
+                foreach (FilterInfo dev in filterc)
+                {
+                    comboBox1.Items.Add(dev.Name);
+                }
+
+                // Establecer el primer ítem como seleccionado, si hay fuentes disponibles
+                if (comboBox1.Items.Count > 0)
+                {
+                    comboBox1.SelectedIndex = 0;
+                }
+                else
+                {
+                    MessageBox.Show("No se encontraron cámaras disponibles.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
 
             //Detector = new MotionDetector(new TwoFramesDifferenceDetector(), new MotionBorderHighlighting());
             //NivelDeteccion = 0;
@@ -157,12 +181,26 @@ namespace PIA_PI
 
         private void button2_Click(object sender, EventArgs e)
         {
-            filterc = new FilterInfoCollection(FilterCategory.VideoInputDevice);
-            foreach (FilterInfo dev in filterc)
+            // Si la cámara está encendida, detenerla y reiniciarla con la nueva fuente seleccionada
+            if (encendido)
             {
-                comboBox1.Items.Add(dev.Name);
-                comboBox1.SelectedIndex = 0;
+                // Detener la cámara actual
+                vidcap.SignalToStop();
+                vidcap.WaitForStop();
 
+                // Establecer la nueva fuente seleccionada
+                string selectedMoniker = filterc[comboBox1.SelectedIndex].MonikerString;
+                vidcap = new VideoCaptureDevice(selectedMoniker);
+                vidcap.NewFrame += new NewFrameEventHandler(DetectorCamera);
+
+                // Reiniciar la cámara con la nueva fuente seleccionada
+                vidcap.Start();
+
+                MessageBox.Show("Cámara actualizada con éxito.", "Actualización", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                MessageBox.Show("La cámara no está encendida.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -183,8 +221,26 @@ namespace PIA_PI
 
         private void btncamara_Click(object sender, EventArgs e)
         {
+            // Verificar si ya está corriendo la cámara
+            if (vidcap != null && vidcap.IsRunning)
+            {
+                MessageBox.Show("La cámara ya está encendida.", "Información", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Obtener la fuente seleccionada en el ComboBox
+            string selectedSource = comboBox1.SelectedItem.ToString();
+
+            // Verificar si se ha seleccionado una cámara
+            if (string.IsNullOrEmpty(selectedSource))
+            {
+                MessageBox.Show("Por favor, seleccione una cámara de la lista.", "Advertencia", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Obtener la fuente seleccionada en el ComboBox
+            //videoSourcePlayer1.VideoSource = vidcap;
             vidcap = new VideoCaptureDevice(filterc[comboBox1.SelectedIndex].MonikerString);
-            //      videoSourcePlayer1.VideoSource = vidcap;
             vidcap.NewFrame += new NewFrameEventHandler(DetectorCamera);
 
             encendido = true;
@@ -198,15 +254,46 @@ namespace PIA_PI
 
         private void button1_Click_1(object sender, EventArgs e)
         {
-            radioButton1.Checked = false;
-            radioButton1.BackColor = Color.FromArgb(64, 64, 64);
-            radioButton2.Checked = true;
-            radioButton2.BackColor = Color.Red;
-            vidcap.Stop();
-            pictureBox1.Image = null;
-            encendido = false;
+            if (encendido) // Verificar si la cámara está encendida
+            {
+                radioButton1.Checked = false;
+                radioButton1.BackColor = Color.FromArgb(64, 64, 64);
+                radioButton2.Checked = true;
+                radioButton2.BackColor = Color.Red;
 
-            //   videoSourcePlayer1.VideoSource = null;
+                vidcap.SignalToStop(); // Enviar señal para detener la captura
+                vidcap.WaitForStop();  // Esperar a que la cámara termine de apagarse
+                //vidcap.Stop();    //Apaga la cámara inmediatamente (puede generar errores)
+                pictureBox1.Image = null;
+
+                encendido = false; // Marcar que la cámara está apagada
+            }
+            else
+            {
+                MessageBox.Show("La cámara ya está apagada.", "Información", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void Camara_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            // Verificamos si la cámara está encendida
+            if (encendido)
+            {
+               
+                // Liberamos los recursos de la cámara
+                vidcap.SignalToStop();
+                vidcap.WaitForStop();
+               // vidcap.Stop();  //Se apaga inmediatamente
+                encendido = false;
+
+                // Liberar cualquier recurso asociado con la cámara
+                pictureBox1.Image = null;
+            }
+        }
+
+        private void comboBox1_SelectedIndexChanged_1(object sender, EventArgs e)
+        {
+            
         }
     }
 }
