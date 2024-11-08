@@ -171,6 +171,7 @@ namespace PIA_PI
 
                     Video.Read(math);
                     currentFrame = math.ToImage<Bgr, byte>();
+                  // pictureBox1.Image = null;
                     pictureBox1.Image = currentFrame.Bitmap;
                     opcion_filtro = 0; // Restablecer el filtro (si es necesario)
                     isVideo = true;
@@ -301,79 +302,65 @@ namespace PIA_PI
             if (comboBox1.SelectedIndex != -1 && pictureBox1.Image != null)
             {
                 string filtro = comboBox1.SelectedItem.ToString();
-            /*
-            1-Efecto Solarizado
-            2-Filtro de Calor
-            3-Efecto PopArt
-            4-Efecto Emboss
-            5-Efecto Vignette
-            6-Efecto Glitch
-            7-Efecto Negativo
-            8-Detección de Bordes
-            9-Efecto Cómic
-            10-Efecto Gradiente Arcoiris
-                */
-        
+                /*
+                1-Efecto Solarizado
+                2-Filtro de Calor
+                3-Efecto PopArt
+                4-Efecto Emboss
+                5-Efecto Vignette
+                6-Efecto Glitch
+                7-Efecto Negativo
+                8-Detección de Bordes
+                9-Efecto Cómic
+                10-Efecto Gradiente Arcoiris
+                    */
 
-            if (filtro == "1-Efecto Solarizado")
-            {
-                opcion_filtro = 1;
-            }
-
-            if (filtro == "2-Filtro de Calor")
-            {
-                opcion_filtro = 2;
-
-            }
-
-            if (filtro == "3-Efecto PopArt")
-            {
-                opcion_filtro = 3;
-            }
-
-            if (filtro == "4-Efecto Emboss")
-            {
-                opcion_filtro = 4;
-            }
-
-            if (filtro == "5-Efecto Vignette")
-            {
-                opcion_filtro = 5;
-
-            }
-
-            if (filtro == "6-Efecto Glitch")
-            {
-                opcion_filtro = 6;
-
-            }
-
-            if (filtro == "7-Efecto Negativo")
-            {
-                opcion_filtro = 7;
-
-            }
-
-            if (filtro == "8-Detección de Bordes")
-            {
-                opcion_filtro = 8;
-
-            }
-
-            if (filtro == "9-Efecto Cómic")
-            {
-                opcion_filtro = 9;
-            }
-
-            if (filtro == "10-Efecto Gradiente Arcoiris")
-            {
-                opcion_filtro = 10;
-                //isplay = true; //se supone que lo reproduzca despues de aplicar el filtro
-
+                // Establecer el filtro seleccionado
+                switch (filtro)
+                {
+                    case "1-Efecto Solarizado":
+                        opcion_filtro = 1;
+                        break;
+                    case "2-Filtro de Calor":
+                        opcion_filtro = 2;
+                        break;
+                    case "3-Efecto PopArt":
+                        opcion_filtro = 3;
+                        break;
+                    case "4-Efecto Emboss":
+                        opcion_filtro = 4;
+                        break;
+                    case "5-Efecto Vignette":
+                        opcion_filtro = 5;
+                        break;
+                    case "6-Efecto Glitch":
+                        opcion_filtro = 6;
+                        break;
+                    case "7-Efecto Negativo":
+                        opcion_filtro = 7;
+                        break;
+                    case "8-Detección de Bordes":
+                        opcion_filtro = 8;
+                        break;
+                    case "9-Efecto Cómic":
+                        opcion_filtro = 9;
+                        break;
+                    case "10-Efecto Gradiente Arcoiris":
+                        opcion_filtro = 10;
+                        break;
+                    default:
+                        MessageBox.Show("Filtro no reconocido", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
                 }
+
+                // Aplica el filtro y la lógica de reproducción
+                isplay = true; // Marca que se debe reproducir el video
+                Application.Idle += new EventHandler(VideoFrameCapture); // Inicia la captura de frames para reproducción
+
             }
             else
-            {
+            
+                {
                 MessageBox.Show("Seleccione una opción y revise si tiene un video cargado", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
