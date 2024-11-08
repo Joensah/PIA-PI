@@ -368,8 +368,7 @@ namespace PIA_PI
             if (filtro == "10-Efecto Gradiente Arcoiris")
             {
                 opcion_filtro = 10;
-                MessageBox.Show("Filtro aplicado", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                isplay = true;
+                //isplay = true;
 
                 }
             }
@@ -439,7 +438,7 @@ namespace PIA_PI
                10 Efecto Difuminado(Gaussiano)
         */
 
-        //==========================================EFECTO DE SOLARIZADO(lock)========================================================================
+        //==========================================EFECTO DE SOLARIZADO(lock y unlock bits)========================================================================
         private Bitmap ApplySolarizationEffect(Bitmap sourceBitmap)
         {
             // Crear una copia de la imagen para trabajar en ella sin modificar la original
@@ -501,47 +500,81 @@ namespace PIA_PI
             return bmp;
         }
 
-        //==========================================FILTRO DE CALOR(bitmap)======================================================================
+        //==========================================FILTRO DE CALOR(lock y unlick bits)======================================================================
 
         private Bitmap ApplyHeatEffect(Bitmap sourceBitmap)
         {
-            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height);
+            // Crear una nueva imagen para el resultado
+            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height, PixelFormat.Format24bppRgb);
 
+            // Bloquear los bits de la imagen fuente y de destino
+            BitmapData srcData = sourceBitmap.LockBits(new Rectangle(0, 0, sourceBitmap.Width, sourceBitmap.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+            BitmapData destData = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+
+            int bytesPerPixel = 3; // Para imágenes en 24bpp
+            int stride = srcData.Stride;
+            IntPtr srcPtr = srcData.Scan0;
+            IntPtr destPtr = destData.Scan0;
+
+            byte[] srcBuffer = new byte[stride * sourceBitmap.Height];
+            byte[] destBuffer = new byte[stride * bmp.Height];
+
+            // Copiar los datos de la imagen fuente al búfer de bytes
+            Marshal.Copy(srcPtr, srcBuffer, 0, srcBuffer.Length);
+
+            // Procesar cada píxel
             for (int y = 0; y < sourceBitmap.Height; y++)
             {
                 for (int x = 0; x < sourceBitmap.Width; x++)
                 {
-                    Color originalColor = sourceBitmap.GetPixel(x, y);
+                    int index = (y * stride) + (x * bytesPerPixel);
+
+                    byte b = srcBuffer[index];
+                    byte g = srcBuffer[index + 1];
+                    byte r = srcBuffer[index + 2];
 
                     // Convertir el color a una intensidad de gris (promedio de R, G, B)
-                    int intensity = (originalColor.R + originalColor.G + originalColor.B) / 3;
+                    int intensity = (r + g + b) / 3;
 
                     // Mapeo de intensidad a una paleta de colores (heatmap)
                     Color heatmapColor;
                     if (intensity < 64) // frío
-                        heatmapColor = Color.FromArgb(0, 0, 255 - (intensity * 4)); // azul a azul oscuro
+                        heatmapColor = Color.FromArgb(0, 0, (byte)(255 - (intensity * 4))); // azul a azul oscuro
                     else if (intensity < 128) // intermedio frío
-                        heatmapColor = Color.FromArgb(0, (intensity - 64) * 4, 255); // verde a azul
+                        heatmapColor = Color.FromArgb(0, (byte)((intensity - 64) * 4), (byte)255); // verde a azul
                     else if (intensity < 192) // intermedio cálido
-                        heatmapColor = Color.FromArgb((intensity - 128) * 4, 255, 255 - (intensity - 128) * 4); // amarillo a verde
+                        heatmapColor = Color.FromArgb((byte)((intensity - 128) * 4), (byte)255, (byte)(255 - (intensity - 128) * 4)); // amarillo a verde
                     else // cálido
-                        heatmapColor = Color.FromArgb(255, 255 - (intensity - 192) * 4, 0); // rojo a amarillo
+                        heatmapColor = Color.FromArgb(255, (byte)(255 - (intensity - 192) * 4), 0); // rojo a amarillo
 
-                    bmp.SetPixel(x, y, heatmapColor);
+                    // Asignar el color al búfer de destino
+                    destBuffer[index] = heatmapColor.B;
+                    destBuffer[index + 1] = heatmapColor.G;
+                    destBuffer[index + 2] = heatmapColor.R;
                 }
             }
 
+            // Copiar el búfer modificado de vuelta a la imagen destino
+            Marshal.Copy(destBuffer, 0, destPtr, destBuffer.Length);
 
-            // Recalcular y actualizar el histograma con la imagen filtrada
+            // Desbloquear los bits
+            sourceBitmap.UnlockBits(srcData);
+            bmp.UnlockBits(destData);
 
-            return bmp; // Devuelve la imagen con el filtro aplicado
+            return bmp; // Devolver la imagen con el filtro aplicado
         }
 
-        //==========================================EFECTO POPART(bitmap)========================================================================
+        //==========================================EFECTO POPART(lock y unlock bits)========================================================================
 
         private Bitmap ApplyPopArtEffect(Bitmap sourceBitmap)
         {
-            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height);
+            // Bloquear los bits de la imagen para acceso rápido
+            Rectangle rect = new Rectangle(0, 0, sourceBitmap.Width, sourceBitmap.Height);
+            BitmapData bmpData = sourceBitmap.LockBits(rect, ImageLockMode.ReadOnly, sourceBitmap.PixelFormat);
+            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height, sourceBitmap.PixelFormat);
+
+            // Bloquear los bits de la imagen de salida para modificarla
+            BitmapData bmpDataOutput = bmp.LockBits(rect, ImageLockMode.WriteOnly, sourceBitmap.PixelFormat);
 
             // Definir una paleta de colores vibrantes
             Color[] vibrantColors = {
@@ -553,35 +586,74 @@ namespace PIA_PI
         Color.FromArgb(128, 0, 128)   // Púrpura
     };
 
-            for (int y = 0; y < sourceBitmap.Height; y++)
+            // Punteros para recorrer los píxeles de la imagen bloqueada
+            IntPtr ptr = bmpData.Scan0;
+            IntPtr ptrOutput = bmpDataOutput.Scan0;
+
+            // Obtener el tamaño de los píxeles
+            int bytesPerPixel = Bitmap.GetPixelFormatSize(sourceBitmap.PixelFormat) / 8;
+            int stride = bmpData.Stride;  // El paso de bytes por fila
+            int width = sourceBitmap.Width;
+            int height = sourceBitmap.Height;
+
+            // Recorrer cada píxel en la imagen de entrada
+            unsafe
             {
-                for (int x = 0; x < sourceBitmap.Width; x++)
+                byte* pixelPointer = (byte*)ptr;
+                byte* outputPointer = (byte*)ptrOutput;
+
+                for (int y = 0; y < height; y++)
                 {
-                    Color pixelColor = sourceBitmap.GetPixel(x, y);
+                    for (int x = 0; x < width; x++)
+                    {
+                        // Calcular la posición del píxel
+                        int pixelIndex = y * stride + x * bytesPerPixel;
 
-                    // Posterizar el color
-                    int r = (pixelColor.R / 128) * 128; // Redondea a múltiplos de 128
-                    int g = (pixelColor.G / 128) * 128; // Redondea a múltiplos de 128
-                    int b = (pixelColor.B / 128) * 128; // Redondea a múltiplos de 128
+                        // Obtener los valores de los colores
+                        byte b = pixelPointer[pixelIndex];    // Azul
+                        byte g = pixelPointer[pixelIndex + 1]; // Verde
+                        byte r = pixelPointer[pixelIndex + 2]; // Rojo
 
-                    // Encontrar el color más cercano en la paleta
-                    Color newColor = vibrantColors.OrderBy(c =>
-                        Math.Abs(c.R - r) + Math.Abs(c.G - g) + Math.Abs(c.B - b)).First();
+                        // Posterizar el color
+                        r = (byte)((r / 128) * 128); // Redondea a múltiplos de 128
+                        g = (byte)((g / 128) * 128); // Redondea a múltiplos de 128
+                        b = (byte)((b / 128) * 128); // Redondea a múltiplos de 128
 
-                    bmp.SetPixel(x, y, newColor);
+                        // Encontrar el color más cercano en la paleta
+                        Color closestColor = vibrantColors.OrderBy(c =>
+                            Math.Abs(c.R - r) + Math.Abs(c.G - g) + Math.Abs(c.B - b)).First();
+
+                        // Asignar el color a la imagen de salida
+                        outputPointer[pixelIndex] = closestColor.B;    // Azul
+                        outputPointer[pixelIndex + 1] = closestColor.G; // Verde
+                        outputPointer[pixelIndex + 2] = closestColor.R; // Rojo
+                    }
                 }
             }
 
-            // Recalcular y actualizar el histograma con la imagen filtrada
+            // Desbloquear los bits de las imágenes
+            sourceBitmap.UnlockBits(bmpData);
+            bmp.UnlockBits(bmpDataOutput);
 
             return bmp;
         }
 
-        //==========================================EFECTO EMBOSS(bitmap)========================================================================
+        //==========================================EFECTO EMBOSS(lock y unlock bits)========================================================================
 
         private Bitmap ApplyEmbossEffect(Bitmap sourceBitmap)
         {
-            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height);
+            // Crear una nueva imagen con las mismas dimensiones que la fuente
+            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height, sourceBitmap.PixelFormat);
+
+            // Bloquear los bits de la imagen original para acceso rápido
+            Rectangle rect = new Rectangle(0, 0, sourceBitmap.Width, sourceBitmap.Height);
+            BitmapData srcData = sourceBitmap.LockBits(rect, ImageLockMode.ReadOnly, sourceBitmap.PixelFormat);
+            BitmapData destData = bmp.LockBits(rect, ImageLockMode.WriteOnly, bmp.PixelFormat);
+
+            int bytesPerPixel = Bitmap.GetPixelFormatSize(sourceBitmap.PixelFormat) / 8;
+            int stride = srcData.Stride;
+            IntPtr srcPtr = srcData.Scan0;
+            IntPtr destPtr = destData.Scan0;
 
             // Definir el kernel para el efecto emboss
             int[,] embossKernel = new int[,]
@@ -591,82 +663,133 @@ namespace PIA_PI
         {  0,  1, 2 }
             };
 
-            for (int y = 1; y < sourceBitmap.Height - 1; y++)
+            // Realizar la operación de emboss en los píxeles
+            unsafe
             {
-                for (int x = 1; x < sourceBitmap.Width - 1; x++)
+                byte* src = (byte*)srcPtr.ToPointer();
+                byte* dest = (byte*)destPtr.ToPointer();
+
+                for (int y = 1; y < sourceBitmap.Height - 1; y++)
                 {
-                    int r = 0, g = 0, b = 0;
-
-                    // Aplicar el kernel
-                    for (int ky = -1; ky <= 1; ky++)
+                    for (int x = 1; x < sourceBitmap.Width - 1; x++)
                     {
-                        for (int kx = -1; kx <= 1; kx++)
+                        int r = 0, g = 0, b = 0;
+
+                        // Aplicar el kernel
+                        for (int ky = -1; ky <= 1; ky++)
                         {
-                            Color pixelColor = sourceBitmap.GetPixel(x + kx, y + ky);
-                            r += pixelColor.R * embossKernel[ky + 1, kx + 1];
-                            g += pixelColor.G * embossKernel[ky + 1, kx + 1];
-                            b += pixelColor.B * embossKernel[ky + 1, kx + 1];
+                            for (int kx = -1; kx <= 1; kx++)
+                            {
+                                int offsetX = (x + kx) * bytesPerPixel;
+                                int offsetY = (y + ky) * stride;
+
+                                int pixelIndex = offsetY + offsetX;
+
+                                // Obtener los valores de R, G, B de los píxeles vecinos
+                                byte red = src[pixelIndex + 2]; // R está en el índice 2
+                                byte green = src[pixelIndex + 1]; // G está en el índice 1
+                                byte blue = src[pixelIndex]; // B está en el índice 0
+
+                                r += red * embossKernel[ky + 1, kx + 1];
+                                g += green * embossKernel[ky + 1, kx + 1];
+                                b += blue * embossKernel[ky + 1, kx + 1];
+                            }
                         }
+
+                        // Clampeo de los valores RGB
+                        r = Math.Min(Math.Max(r + 128, 0), 255); // Sumar 128 para evitar negativos
+                        g = Math.Min(Math.Max(g + 128, 0), 255);
+                        b = Math.Min(Math.Max(b + 128, 0), 255);
+
+                        // Escribir el nuevo valor de los píxeles en la imagen de destino
+                        int destIndex = (y * stride) + (x * bytesPerPixel);
+                        dest[destIndex] = (byte)b;
+                        dest[destIndex + 1] = (byte)g;
+                        dest[destIndex + 2] = (byte)r;
                     }
-
-                    // Clampeo de los valores RGB
-                    r = Math.Min(Math.Max(r + 128, 0), 255); // Sumar 128 para evitar negativos
-                    g = Math.Min(Math.Max(g + 128, 0), 255);
-                    b = Math.Min(Math.Max(b + 128, 0), 255);
-
-                    bmp.SetPixel(x, y, Color.FromArgb(r, g, b));
                 }
             }
 
-            // Recalcular y actualizar el histograma con la imagen filtrada
+            // Liberar los bits de la imagen
+            sourceBitmap.UnlockBits(srcData);
+            bmp.UnlockBits(destData);
 
             return bmp;
         }
 
-        //==========================================EFECTO VIGNETTE(bitmap)======================================================================
+        //==========================================EFECTO VIGNETTE(lock y unlock bits)======================================================================
 
         private Bitmap ApplyVignetteEffect(Bitmap sourceBitmap)
         {
-            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height);
+            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height, sourceBitmap.PixelFormat);
+
+            // Bloquear los bits de la imagen fuente y la de destino
+            Rectangle rect = new Rectangle(0, 0, sourceBitmap.Width, sourceBitmap.Height);
+            BitmapData srcData = sourceBitmap.LockBits(rect, ImageLockMode.ReadOnly, sourceBitmap.PixelFormat);
+            BitmapData destData = bmp.LockBits(rect, ImageLockMode.WriteOnly, bmp.PixelFormat);
+
+            int bytesPerPixel = Bitmap.GetPixelFormatSize(sourceBitmap.PixelFormat) / 8;
+            int stride = srcData.Stride;
+            IntPtr srcPtr = srcData.Scan0;
+            IntPtr destPtr = destData.Scan0;
 
             // Calcular el centro de la imagen
             int centerX = sourceBitmap.Width / 2;
             int centerY = sourceBitmap.Height / 2;
 
             // Incrementar el radio máximo para suavizar el viñeteado
-            double maxRadius = Math.Sqrt(centerX * centerX + centerY * centerY) * 1.2; // Aumenta el valor del multiplicador para suavizar más
+            double maxRadius = Math.Sqrt(centerX * centerX + centerY * centerY) * 1.2;
 
-            for (int y = 0; y < sourceBitmap.Height; y++)
+            unsafe
             {
-                for (int x = 0; x < sourceBitmap.Width; x++)
+                byte* src = (byte*)srcPtr.ToPointer();
+                byte* dest = (byte*)destPtr.ToPointer();
+
+                for (int y = 0; y < sourceBitmap.Height; y++)
                 {
-                    // Calcular la distancia desde el centro
-                    int dx = x - centerX;
-                    int dy = y - centerY;
-                    double distance = Math.Sqrt(dx * dx + dy * dy);
+                    for (int x = 0; x < sourceBitmap.Width; x++)
+                    {
+                        // Calcular la distancia desde el centro
+                        int dx = x - centerX;
+                        int dy = y - centerY;
+                        double distance = Math.Sqrt(dx * dx + dy * dy);
 
-                    // Calcular el factor de viñeteado, asegurando que esté entre 0 y 1
-                    double vignetteFactor = 1 - ClampDouble(distance / maxRadius, 0.0, 1.0);
-                    vignetteFactor = Math.Pow(vignetteFactor, 2.5); // Ajuste para suavizar la caída (cuanto más alto el exponente, más suave)
+                        // Calcular el factor de viñeteado, asegurando que esté entre 0 y 1
+                        double vignetteFactor = 1 - ClampDouble(distance / maxRadius, 0.0, 1.0);
+                        vignetteFactor = Math.Pow(vignetteFactor, 2.5); // Ajuste para suavizar la caída
 
-                    // Obtener el color original
-                    Color pixelColor = sourceBitmap.GetPixel(x, y);
+                        // Calcular el índice de píxel en la memoria
+                        int offsetX = x * bytesPerPixel;
+                        int offsetY = y * stride;
+                        int pixelIndex = offsetY + offsetX;
 
-                    // Aplicar el efecto de viñeteado
-                    int r = (int)(pixelColor.R * vignetteFactor);
-                    int g = (int)(pixelColor.G * vignetteFactor);
-                    int b = (int)(pixelColor.B * vignetteFactor);
+                        // Obtener los valores RGB del píxel original
+                        byte blue = src[pixelIndex];
+                        byte green = src[pixelIndex + 1];
+                        byte red = src[pixelIndex + 2];
 
-                    // Clampeo de los valores RGB
-                    r = ClampInt(r, 0, 255);
-                    g = ClampInt(g, 0, 255);
-                    b = ClampInt(b, 0, 255);
+                        // Aplicar el efecto de viñeteado
+                        int r = (int)(red * vignetteFactor);
+                        int g = (int)(green * vignetteFactor);
+                        int b = (int)(blue * vignetteFactor);
 
-                    bmp.SetPixel(x, y, Color.FromArgb(r, g, b));
+                        // Clampeo de los valores RGB
+                        r = ClampInt(r, 0, 255);
+                        g = ClampInt(g, 0, 255);
+                        b = ClampInt(b, 0, 255);
+
+                        // Escribir el nuevo valor del píxel en la imagen de destino
+                        int destIndex = (y * stride) + (x * bytesPerPixel);
+                        dest[destIndex] = (byte)b;
+                        dest[destIndex + 1] = (byte)g;
+                        dest[destIndex + 2] = (byte)r;
+                    }
                 }
             }
 
-            // Recalcular y actualizar el histograma con la imagen filtrada
+            // Liberar los bits de la imagen
+            sourceBitmap.UnlockBits(srcData);
+            bmp.UnlockBits(destData);
 
             return bmp;
         }
@@ -683,97 +806,157 @@ namespace PIA_PI
             return Math.Max(min, Math.Min(max, value));
         }
 
-        //==========================================EFECTO GLITCH(bitmap)========================================================================
+       //==========================================EFECTO GLITCH(lock y unlock)========================================================================
 
-        private Bitmap ApplyGlitchEffect(Bitmap sourceBitmap)
-        {
+       private Bitmap ApplyGlitchEffect(Bitmap sourceBitmap)
+       {
             Random random = new Random();
-            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height);
-            int maxOffset = 10; // Desplazamiento máximo en píxeles
+            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height, sourceBitmap.PixelFormat);
 
-            for (int y = 0; y < sourceBitmap.Height; y++)
+            // Bloquear los bits de la imagen fuente y la de destino
+            Rectangle rect = new Rectangle(0, 0, sourceBitmap.Width, sourceBitmap.Height);
+            BitmapData srcData = sourceBitmap.LockBits(rect, ImageLockMode.ReadOnly, sourceBitmap.PixelFormat);
+            BitmapData destData = bmp.LockBits(rect, ImageLockMode.WriteOnly, bmp.PixelFormat);
+
+            int bytesPerPixel = Bitmap.GetPixelFormatSize(sourceBitmap.PixelFormat) / 8;
+            int stride = srcData.Stride;
+            IntPtr srcPtr = srcData.Scan0;
+            IntPtr destPtr = destData.Scan0;
+
+            unsafe
             {
-                for (int x = 0; x < sourceBitmap.Width; x++)
+                byte* src = (byte*)srcPtr.ToPointer();
+                byte* dest = (byte*)destPtr.ToPointer();
+
+                for (int y = 0; y < sourceBitmap.Height; y++)
                 {
-                    // Obtener el color original
-                    Color pixelColor = sourceBitmap.GetPixel(x, y);
-
-                    // Desplazamiento aleatorio en el eje X
-                    int offsetX = random.Next(-maxOffset, maxOffset + 1);
-                    int offsetY = random.Next(-maxOffset / 2, maxOffset / 2 + 1); // Desplazamiento vertical más pequeño
-
-                    // Asegurarse de que el nuevo valor de X e Y estén dentro de los límites
-                    int newX = Clamp4(x + offsetX, 0, sourceBitmap.Width - 1);
-                    int newY = Clamp4(y + offsetY, 0, sourceBitmap.Height - 1);
-
-                    // Establecer el color del píxel en la nueva posición
-                    bmp.SetPixel(newX, newY, pixelColor);
-
-                    // Alteraciones de color aleatorias
-                    if (random.Next(100) < 40) // 40% de probabilidad de distorsionar el color
+                    for (int x = 0; x < sourceBitmap.Width; x++)
                     {
-                        // Desplazar los canales de color aleatoriamente
-                        int rOffset = random.Next(-50, 50);
-                        int gOffset = random.Next(-50, 50);
-                        int bOffset = random.Next(-50, 50);
+                        // Calcular el índice del píxel en la memoria
+                        int offsetX = x * bytesPerPixel;
+                        int offsetY = y * stride;
+                        int pixelIndex = offsetY + offsetX;
 
-                        // Ajustar el color para distorsionar
-                        int r = Clamp4(pixelColor.R + rOffset, 0, 255);
-                        int g = Clamp4(pixelColor.G + gOffset, 0, 255);
-                        int b = Clamp4(pixelColor.B + bOffset, 0, 255);
+                        // Obtener el color original del píxel
+                        byte blue = src[pixelIndex];
+                        byte green = src[pixelIndex + 1];
+                        byte red = src[pixelIndex + 2];
 
-                        // Establecer el nuevo color distorsionado
-                        bmp.SetPixel(newX, newY, Color.FromArgb(r, g, b));
+                        // Desplazamiento aleatorio en el eje X y Y
+                        int maxOffset = 10;
+                        int offsetGlitchX = random.Next(-maxOffset, maxOffset + 1);
+                        int offsetGlitchY = random.Next(-maxOffset / 2, maxOffset / 2 + 1);
+
+                        // Asegurarse de que el nuevo valor de X e Y estén dentro de los límites
+                        int newX = Clamp4(x + offsetGlitchX, 0, sourceBitmap.Width - 1);
+                        int newY = Clamp4(y + offsetGlitchY, 0, sourceBitmap.Height - 1);
+
+                        // Calcular el nuevo índice de píxel desplazado
+                        int newOffsetX = newX * bytesPerPixel;
+                        int newOffsetY = newY * stride;
+                        int newPixelIndex = newOffsetY + newOffsetX;
+
+                        // Establecer el color del píxel en la nueva posición
+                        dest[newPixelIndex] = blue;
+                        dest[newPixelIndex + 1] = green;
+                        dest[newPixelIndex + 2] = red;
+
+                        // Alteraciones de color aleatorias
+                        if (random.Next(100) < 40) // 40% de probabilidad de distorsionar el color
+                        {
+                            // Desplazar los canales de color aleatoriamente
+                            int rOffset = random.Next(-50, 50);
+                            int gOffset = random.Next(-50, 50);
+                            int bOffset = random.Next(-50, 50);
+
+                            // Ajustar el color para distorsionar
+                            int r = Clamp4(red + rOffset, 0, 255);
+                            int g = Clamp4(green + gOffset, 0, 255);
+                            int b = Clamp4(blue + bOffset, 0, 255);
+
+                            // Establecer el nuevo color distorsionado en la posición desplazada
+                            dest[newPixelIndex] = (byte)b;
+                            dest[newPixelIndex + 1] = (byte)g;
+                            dest[newPixelIndex + 2] = (byte)r;
+                        }
                     }
                 }
             }
 
-
-            // Recalcular y actualizar el histograma con la imagen filtrada
+            // Liberar los bits de la imagen
+            sourceBitmap.UnlockBits(srcData);
+            bmp.UnlockBits(destData);
 
             return bmp;
         }
+
         // Función para asegurar que los valores estén en el rango permitido
         private int Clamp4(int value, int min, int max)
         {
             return Math.Max(min, Math.Min(max, value));
         }
 
-        //==========================================EFECTO NEGATIVO(bitmap)======================================================================
+        //==========================================EFECTO NEGATIVO(lock y unlock)======================================================================
 
         private Bitmap ApplyNegativeEffect(Bitmap sourceBitmap)
         {
-            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height);
+            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height, sourceBitmap.PixelFormat);
 
-            for (int y = 0; y < sourceBitmap.Height; y++)
+            // Bloquear los bits de la imagen fuente y la de destino
+            Rectangle rect = new Rectangle(0, 0, sourceBitmap.Width, sourceBitmap.Height);
+            BitmapData srcData = sourceBitmap.LockBits(rect, ImageLockMode.ReadOnly, sourceBitmap.PixelFormat);
+            BitmapData destData = bmp.LockBits(rect, ImageLockMode.WriteOnly, bmp.PixelFormat);
+
+            int bytesPerPixel = Bitmap.GetPixelFormatSize(sourceBitmap.PixelFormat) / 8;
+            int stride = srcData.Stride;
+            IntPtr srcPtr = srcData.Scan0;
+            IntPtr destPtr = destData.Scan0;
+
+            unsafe
             {
-                for (int x = 0; x < sourceBitmap.Width; x++)
+                byte* src = (byte*)srcPtr.ToPointer();
+                byte* dest = (byte*)destPtr.ToPointer();
+
+                for (int y = 0; y < sourceBitmap.Height; y++)
                 {
-                    // Obtener el color original del píxel
-                    Color pixelColor = sourceBitmap.GetPixel(x, y);
+                    for (int x = 0; x < sourceBitmap.Width; x++)
+                    {
+                        // Calcular el índice del píxel en la memoria
+                        int offsetX = x * bytesPerPixel;
+                        int offsetY = y * stride;
+                        int pixelIndex = offsetY + offsetX;
 
-                    // Invertir los componentes de color
-                    int r = 255 - pixelColor.R;
-                    int g = 255 - pixelColor.G;
-                    int b = 255 - pixelColor.B;
+                        // Obtener el color original del píxel
+                        byte blue = src[pixelIndex];
+                        byte green = src[pixelIndex + 1];
+                        byte red = src[pixelIndex + 2];
 
-                    // Establecer el nuevo color en el píxel
-                    bmp.SetPixel(x, y, Color.FromArgb(r, g, b));
+                        // Invertir los componentes de color
+                        byte invertedRed = (byte)(255 - red);
+                        byte invertedGreen = (byte)(255 - green);
+                        byte invertedBlue = (byte)(255 - blue);
+
+                        // Establecer el nuevo color invertido en el píxel
+                        dest[pixelIndex] = invertedBlue;
+                        dest[pixelIndex + 1] = invertedGreen;
+                        dest[pixelIndex + 2] = invertedRed;
+                    }
                 }
             }
 
-
-            // Recalcular y actualizar el histograma con la imagen filtrada
+            // Liberar los bits de la imagen
+            sourceBitmap.UnlockBits(srcData);
+            bmp.UnlockBits(destData);
 
             return bmp;
         }
 
 
-        //==========================================DETECCIÓN DE BORDES==================================================================
+        //==========================================DETECCIÓN DE BORDES(lock y unlock)==================================================================
 
         private Bitmap ApplyEdgeDetectionEffect(Bitmap sourceBitmap)
         {
-            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height);
+            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height, sourceBitmap.PixelFormat);
 
             // Definir los kernels de Sobel para la detección de bordes
             int[,] gx = new int[,]
@@ -790,38 +973,66 @@ namespace PIA_PI
         { -1, -2, -1 }
             };
 
-            for (int y = 1; y < sourceBitmap.Height - 1; y++)
+            // Bloquear los bits de la imagen fuente y la de destino
+            Rectangle rect = new Rectangle(0, 0, sourceBitmap.Width, sourceBitmap.Height);
+            BitmapData srcData = sourceBitmap.LockBits(rect, ImageLockMode.ReadOnly, sourceBitmap.PixelFormat);
+            BitmapData destData = bmp.LockBits(rect, ImageLockMode.WriteOnly, bmp.PixelFormat);
+
+            int bytesPerPixel = Bitmap.GetPixelFormatSize(sourceBitmap.PixelFormat) / 8;
+            int stride = srcData.Stride;
+            IntPtr srcPtr = srcData.Scan0;
+            IntPtr destPtr = destData.Scan0;
+
+            unsafe
             {
-                for (int x = 1; x < sourceBitmap.Width - 1; x++)
+                byte* src = (byte*)srcPtr.ToPointer();
+                byte* dest = (byte*)destPtr.ToPointer();
+
+                for (int y = 1; y < sourceBitmap.Height - 1; y++)
                 {
-                    // Inicializar los acumuladores para los componentes x e y
-                    int pixelX = 0;
-                    int pixelY = 0;
-
-                    // Aplicar la convolución con los kernels
-                    for (int ky = -1; ky <= 1; ky++)
+                    for (int x = 1; x < sourceBitmap.Width - 1; x++)
                     {
-                        for (int kx = -1; kx <= 1; kx++)
+                        // Inicializar los acumuladores para los componentes x e y
+                        int pixelX = 0;
+                        int pixelY = 0;
+
+                        // Aplicar la convolución con los kernels
+                        for (int ky = -1; ky <= 1; ky++)
                         {
-                            Color pixelColor = sourceBitmap.GetPixel(x + kx, y + ky);
-                            int gray = (pixelColor.R + pixelColor.G + pixelColor.B) / 3; // Convertir a escala de grises
+                            for (int kx = -1; kx <= 1; kx++)
+                            {
+                                // Calcular el índice del píxel en la memoria
+                                int offsetX = (x + kx) * bytesPerPixel;
+                                int offsetY = (y + ky) * stride;
+                                int pixelIndex = offsetY + offsetX;
 
-                            pixelX += gray * gx[ky + 1, kx + 1];
-                            pixelY += gray * gy[ky + 1, kx + 1];
+                                // Obtener el color del píxel y convertirlo a escala de grises
+                                byte blue = src[pixelIndex];
+                                byte green = src[pixelIndex + 1];
+                                byte red = src[pixelIndex + 2];
+                                int gray = (red + green + blue) / 3;
+
+                                pixelX += gray * gx[ky + 1, kx + 1];
+                                pixelY += gray * gy[ky + 1, kx + 1];
+                            }
                         }
+
+                        // Calcular la magnitud del gradiente
+                        int magnitude = (int)Math.Sqrt(pixelX * pixelX + pixelY * pixelY);
+                        magnitude = Clamp2(magnitude, 0, 255); // Clampear el valor
+
+                        // Establecer el nuevo color en el píxel (escala de grises)
+                        int offset = y * stride + x * bytesPerPixel;
+                        dest[offset] = (byte)magnitude;
+                        dest[offset + 1] = (byte)magnitude;
+                        dest[offset + 2] = (byte)magnitude;
                     }
-
-                    // Calcular la magnitud del gradiente
-                    int magnitude = (int)Math.Sqrt(pixelX * pixelX + pixelY * pixelY);
-                    magnitude = Clamp2(magnitude, 0, 255); // Clampear el valor
-
-                    // Establecer el nuevo color en el píxel
-                    bmp.SetPixel(x, y, Color.FromArgb(magnitude, magnitude, magnitude)); // Escala de grises
                 }
             }
 
-
-            // Recalcular y actualizar el histograma con la imagen filtrada
+            // Liberar los bits de la imagen
+            sourceBitmap.UnlockBits(srcData);
+            bmp.UnlockBits(destData);
 
             return bmp;
         }
@@ -832,41 +1043,74 @@ namespace PIA_PI
             return Math.Max(min, Math.Min(max, value));
         }
 
-
-        //==========================================EFECTO DE COMIC(bitmap)======================================================================
+        //==========================================EFECTO DE COMIC(lock y unlock)======================================================================
         private Bitmap ApplyComicEffect(Bitmap sourceBitmap)
         {
-            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height);
+            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height, sourceBitmap.PixelFormat);
 
-            // Calcular el total correcto de píxeles
+            // Bloquear los bits de la imagen fuente y la de destino
+            Rectangle rect = new Rectangle(0, 0, sourceBitmap.Width, sourceBitmap.Height);
+            BitmapData srcData = sourceBitmap.LockBits(rect, ImageLockMode.ReadOnly, sourceBitmap.PixelFormat);
+            BitmapData destData = bmp.LockBits(rect, ImageLockMode.WriteOnly, bmp.PixelFormat);
+
+            int bytesPerPixel = Bitmap.GetPixelFormatSize(sourceBitmap.PixelFormat) / 8;
+            int stride = srcData.Stride;
+            IntPtr srcPtr = srcData.Scan0;
+            IntPtr destPtr = destData.Scan0;
+
             int totalPixels = sourceBitmap.Width * sourceBitmap.Height;
             int currentPixel = 0;
 
-            for (int y = 0; y < sourceBitmap.Height; y++)
+            unsafe
             {
-                for (int x = 0; x < sourceBitmap.Width; x++)
+                byte* src = (byte*)srcPtr.ToPointer();
+                byte* dest = (byte*)destPtr.ToPointer();
+
+                for (int y = 0; y < sourceBitmap.Height; y++)
                 {
-                    Color pixelColor = sourceBitmap.GetPixel(x, y);
+                    for (int x = 0; x < sourceBitmap.Width; x++)
+                    {
+                        int offset = y * stride + x * bytesPerPixel;
 
-                    int avg = (pixelColor.R + pixelColor.G + pixelColor.B) / 3;
-                    bmp.SetPixel(x, y, avg > 127 ? pixelColor : Color.Black);
+                        byte blue = src[offset];
+                        byte green = src[offset + 1];
+                        byte red = src[offset + 2];
 
-                    currentPixel++;
-                    int progressPercentage = currentPixel * 100 / totalPixels;
+                        // Calcular el valor promedio (escala de grises)
+                        int avg = (red + green + blue) / 3;
 
+                        // Si el valor promedio es mayor que 127, dejamos el color original, de lo contrario, lo convertimos a negro
+                        if (avg > 127)
+                        {
+                            dest[offset] = blue;
+                            dest[offset + 1] = green;
+                            dest[offset + 2] = red;
+                        }
+                        else
+                        {
+                            dest[offset] = 0;      // Negro
+                            dest[offset + 1] = 0;  // Negro
+                            dest[offset + 2] = 0;  // Negro
+                        }
 
+                        // Actualizar el progreso
+                        currentPixel++;
+                        int progressPercentage = currentPixel * 100 / totalPixels;
 
-                    Application.DoEvents();
+                        // Llamada a Application.DoEvents() para permitir la actualización de la UI (si es necesario)
+                        Application.DoEvents();
+                    }
                 }
             }
 
-
-            // Recalcular y actualizar el histograma con la imagen filtrada
+            // Liberar los bits de las imágenes
+            sourceBitmap.UnlockBits(srcData);
+            bmp.UnlockBits(destData);
 
             return bmp;
         }
 
-        //==========================================EFECTO DIFUMINADO(GAUSSIANO) (Lo quité)=======================================================================
+        //==========================================EFECTO DIFUMINADO(GAUSSIANO)(set y getpixel) (Lo quité)=======================================================================
 
         private Bitmap ApplyGaussianBlur(Bitmap sourceBitmap)
         {
@@ -926,32 +1170,95 @@ namespace PIA_PI
             return Math.Max(min, Math.Min(max, value));
         }
 
-        //==========================================EFECTO GRADIENTE ARCOIRIS(bitmap)========================================================================
+        //==========================================EFECTO GRADIENTE ARCOIRIS(lock y unlock bits)========================================================================
 
         private Bitmap ApplyRainbowGradientEffect(Bitmap sourceBitmap)
         {
-            // Crear una nueva imagen con el mismo tamaño que la original
-            Bitmap resultBitmap = new Bitmap(sourceBitmap.Width, sourceBitmap.Height);
+            Bitmap bmp = new Bitmap(sourceBitmap.Width, sourceBitmap.Height, sourceBitmap.PixelFormat);
 
-            // Iterar sobre todos los píxeles de la imagen
-            for (int x = 0; x < sourceBitmap.Width; x++)
+            // Bloquear los bits de la imagen fuente y la de destino
+            Rectangle rect = new Rectangle(0, 0, sourceBitmap.Width, sourceBitmap.Height);
+            BitmapData srcData = sourceBitmap.LockBits(rect, ImageLockMode.ReadOnly, sourceBitmap.PixelFormat);
+            BitmapData destData = bmp.LockBits(rect, ImageLockMode.WriteOnly, bmp.PixelFormat);
+
+            int bytesPerPixel = Bitmap.GetPixelFormatSize(sourceBitmap.PixelFormat) / 8;
+            int stride = srcData.Stride;
+            IntPtr srcPtr = srcData.Scan0;
+            IntPtr destPtr = destData.Scan0;
+
+            // Definir los colores del arcoíris (Rojo, Naranja, Amarillo, Verde, Azul, Índigo, Violeta)
+            Color[] rainbowColors = new Color[]
             {
+        Color.Red, Color.Orange, Color.Yellow, Color.Green, Color.Blue, Color.Indigo, Color.Violet
+            };
+
+            int totalColors = rainbowColors.Length - 1;  // Último índice para interpolación
+            int totalPixels = sourceBitmap.Width * sourceBitmap.Height;
+            int currentPixel = 0;
+
+            unsafe
+            {
+                byte* src = (byte*)srcPtr.ToPointer();
+                byte* dest = (byte*)destPtr.ToPointer();
+
                 for (int y = 0; y < sourceBitmap.Height; y++)
                 {
-                    // Obtener el color del píxel
-                    Color pixelColor = sourceBitmap.GetPixel(x, y);
+                    for (int x = 0; x < sourceBitmap.Width; x++)
+                    {
+                        int offset = y * stride + x * bytesPerPixel;
 
-                    // Invertir el color (esto crea el efecto de inversión de colores)
-                    int r = 255 - pixelColor.R;
-                    int g = 255 - pixelColor.G;
-                    int b = 255 - pixelColor.B;
+                        // Obtener el color original del píxel
+                        byte blue = src[offset];
+                        byte green = src[offset + 1];
+                        byte red = src[offset + 2];
 
-                    // Establecer el píxel en la nueva imagen con el color invertido
-                    resultBitmap.SetPixel(x, y, Color.FromArgb(r, g, b));
+                        // Calcular la posición relativa en el eje Y
+                        float ratio = (float)y / sourceBitmap.Height;
+
+                        // Encontrar los dos colores del arcoíris entre los que se interpolará
+                        int startColorIndex = (int)(ratio * totalColors); // Color inicial
+                        int endColorIndex = startColorIndex + 1;          // Color final
+
+                        // Asegurar que el índice final no exceda el límite
+                        if (endColorIndex >= rainbowColors.Length)
+                            endColorIndex = rainbowColors.Length - 1;
+
+                        Color startColor = rainbowColors[startColorIndex];
+                        Color endColor = rainbowColors[endColorIndex];
+
+                        // Calcular la proporción para la interpolación
+                        float localRatio = (ratio * totalColors) - startColorIndex;
+
+                        // Interpolar los componentes R, G, B entre los colores inicial y final
+                        int r = (int)(startColor.R * (1 - localRatio) + endColor.R * localRatio);
+                        int g = (int)(startColor.G * (1 - localRatio) + endColor.G * localRatio);
+                        int b = (int)(startColor.B * (1 - localRatio) + endColor.B * localRatio);
+
+                        // Mezclar el color interpolado del arcoíris con el color original
+                        int newR = (red + r) / 2;
+                        int newG = (green + g) / 2;
+                        int newB = (blue + b) / 2;
+
+                        // Aplicar el nuevo color al píxel
+                        dest[offset] = (byte)newB;
+                        dest[offset + 1] = (byte)newG;
+                        dest[offset + 2] = (byte)newR;
+
+                        // Actualizar el progreso
+                        currentPixel++;
+                        int progressPercentage = currentPixel * 100 / totalPixels;
+
+                        // Llamada a Application.DoEvents() para permitir la actualización de la UI (si es necesario)
+                        Application.DoEvents();
+                    }
                 }
             }
 
-            return resultBitmap;
+            // Liberar los bits de las imágenes
+            sourceBitmap.UnlockBits(srcData);
+            bmp.UnlockBits(destData);
+
+            return bmp;
         }
 
         private void button6_Click(object sender, EventArgs e)
