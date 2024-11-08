@@ -368,7 +368,7 @@ namespace PIA_PI
             if (filtro == "10-Efecto Gradiente Arcoiris")
             {
                 opcion_filtro = 10;
-                //isplay = true;
+                //isplay = true; //se supone que lo reproduzca despues de aplicar el filtro
 
                 }
             }
